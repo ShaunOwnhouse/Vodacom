@@ -35,16 +35,30 @@ async function checkCallbacks() {
     
     // Fetch all records from MockAPI
     const response = await fetch(MOCK_API_URL);
-    const records = await response.json();
     
+    // Check if response is ok
+    if (!response.ok) {
+      console.error(`MockAPI returned status ${response.status}`);
+      return;
+    }
+    
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error(`Invalid response (not JSON): ${text.substring(0, 100)}`);
+      return;
+    }
+    
+    const records = await response.json();
     console.log(`Found ${records.length} total records`);
     
     const now = new Date();
     let updatedCount = 0;
     
-    // Filter for active callbacks
+    // Filter for active callbacks (isCallback = "true")
     const activeCallbacks = records.filter(record => 
-      record.callbackDateTime && record.callbackStatus === 'scheduled'
+      record.callbackDateTime && record.isCallback === "true"
     );
     
     console.log(`Found ${activeCallbacks.length} active callbacks`);
@@ -60,36 +74,37 @@ async function checkCallbacks() {
       if (timeDiff <= 0) {
         console.log(`⏰ TRIGGERING callback for record ${record.id}`);
         
-        // Update the record to mark callback as completed
+        // Update the record: set callUser to 1 and isCallback to "false"
         const updateResponse = await fetch(`${MOCK_API_URL}/${record.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            callbackStatus: 'completed',
-            callbackTriggeredAt: now.toISOString()
+            callUser: 1,
+            isCallback: "false"
           })
         });
         
         if (updateResponse.ok) {
-          console.log(`✅ Successfully updated record ${record.id}`);
+          console.log(`✅ Successfully updated record ${record.id}: callUser=1, isCallback="false"`);
           updatedCount++;
         } else {
-          console.error(`❌ Failed to update record ${record.id}`);
+          console.error(`❌ Failed to update record ${record.id}: ${updateResponse.status}`);
         }
       }
     }
     
-    // Skip records without valid callbackDateTime
+    // Skip records without valid callbackDateTime or isCallback != "true"
     const skippedCount = records.length - activeCallbacks.length;
     if (skippedCount > 0) {
-      console.log(`Skipping ${skippedCount} records - no valid callbackDateTime or not scheduled`);
+      console.log(`Skipping ${skippedCount} records - no valid callbackDateTime or isCallback != "true"`);
     }
     
     console.log(`Completed check. Updated ${updatedCount} records.`);
     console.log('---');
     
   } catch (error) {
-    console.error('Error checking callbacks:', error);
+    console.error('Error checking callbacks:', error.message);
+    console.error('Full error:', error);
   }
 }
 
