@@ -17,6 +17,7 @@ app.get('/', (req, res) => {
         <h1>Callback Scheduler Running</h1>
         <p>Monitoring MockAPI for scheduled callbacks</p>
         <p>Check interval: Every 60 seconds</p>
+        <p>Triggers 5-10 seconds BEFORE scheduled time</p>
         <p><a href="/health">Health Check</a></p>
       </body>
     </html>
@@ -97,9 +98,10 @@ async function checkCallbacks() {
       
       console.log(`Record ${record.id}: Callback at ${record.callbackDate} ${record.callbackDisplayTime} (${callbackTime.toISOString()}), Time diff: ${timeDiff}s`);
       
-      // If callback time has passed (timeDiff is negative or zero)
-      if (timeDiff <= 0) {
-        console.log(`⏰ TRIGGERING callback for record ${record.id}`);
+      // Trigger if we're within 5-10 seconds BEFORE the scheduled time
+      // timeDiff between 5 and 10 means we're 5-10 seconds early
+      if (timeDiff >= 5 && timeDiff <= 10) {
+        console.log(`⏰ TRIGGERING callback for record ${record.id} (${timeDiff}s before scheduled time)`);
         
         // Update the record: set callUser to 1 and isCallback to "false"
         const updateResponse = await fetch(`${MOCK_API_URL}/${record.id}`, {
@@ -117,6 +119,8 @@ async function checkCallbacks() {
         } else {
           console.error(`❌ Failed to update record ${record.id}: ${updateResponse.status}`);
         }
+      } else if (timeDiff < 5) {
+        console.log(`⚠️  Missed window for record ${record.id} (only ${timeDiff}s left)`);
       }
     }
     
@@ -145,4 +149,5 @@ app.listen(PORT, () => {
   console.log(`Dashboard: http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('Checking MockAPI every 60 seconds');
+  console.log('Triggers callbacks 5-10 seconds BEFORE scheduled time');
 });
