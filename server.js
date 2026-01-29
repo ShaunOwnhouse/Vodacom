@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
       <body>
         <h1>Callback Scheduler Running</h1>
         <p>Monitoring MockAPI for scheduled callbacks</p>
-        <p>Check interval: Every 60 seconds</p>
+        <p>Check interval: Every 30 seconds</p>
         <p>Triggers within 30 seconds BEFORE scheduled time</p>
         <p><a href="/health">Health Check</a></p>
       </body>
@@ -29,10 +29,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// Function to parse time string like "3:48 PM" in South African timezone
+// Function to parse time string like "3:55 PM" in South African timezone
 function parseCallbackTime(dateStr, timeStr) {
   try {
-    // Parse time string (e.g., "3:48 PM")
+    // Parse time string (e.g., "3:55 PM")
     const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
     if (!timeMatch) return null;
     
@@ -104,9 +104,9 @@ async function checkCallbacks() {
       
       console.log(`Record ${record.id}: Callback at ${record.callbackDate} ${record.callbackDisplayTime}, Time diff: ${timeDiff}s`);
       
-      // Trigger if we're within 30 seconds BEFORE the scheduled time
-      if (timeDiff >= 0 && timeDiff <= 30) {
-        console.log(`⏰ TRIGGERING callback for record ${record.id} (${timeDiff}s before scheduled time)`);
+      // Trigger if we're within 30 seconds BEFORE the scheduled time (or just passed)
+      if (timeDiff >= -10 && timeDiff <= 30) {
+        console.log(`⏰ TRIGGERING callback for record ${record.id} (${timeDiff}s ${timeDiff >= 0 ? 'before' : 'after'} scheduled time)`);
         
         // Update the record: set callUser to 1 and isCallback to "false"
         const updateResponse = await fetch(`${MOCK_API_URL}/${record.id}`, {
@@ -125,7 +125,7 @@ async function checkCallbacks() {
           const errorText = await updateResponse.text();
           console.error(`❌ Failed to update record ${record.id}: ${updateResponse.status} - ${errorText}`);
         }
-      } else if (timeDiff < 0 && timeDiff > -120) {
+      } else if (timeDiff < -10) {
         console.log(`⚠️  Already passed - missed callback for record ${record.id} (${Math.abs(timeDiff)}s ago)`);
       }
     }
@@ -145,8 +145,8 @@ async function checkCallbacks() {
   }
 }
 
-// Schedule the job to run every minute
-cron.schedule('* * * * *', checkCallbacks);
+// Schedule the job to run every 30 seconds (at :00 and :30 of each minute)
+cron.schedule('*/30 * * * * *', checkCallbacks);
 
 // Run immediately on startup
 checkCallbacks();
@@ -155,6 +155,6 @@ app.listen(PORT, () => {
   console.log(`Callback Scheduler running on port ${PORT}`);
   console.log(`Dashboard: http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log('Checking MockAPI every 60 seconds');
+  console.log('Checking MockAPI every 30 seconds');
   console.log('Triggers callbacks within 30 seconds BEFORE scheduled time');
 });
