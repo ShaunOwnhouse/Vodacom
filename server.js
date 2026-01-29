@@ -44,14 +44,12 @@ function parseCallbackTime(dateStr, timeStr) {
     if (period === 'PM' && hours !== 12) hours += 12;
     if (period === 'AM' && hours === 12) hours = 0;
     
-    // Combine date and time (dateStr is like "2026-01-29")
-    const dateTimeStr = `${dateStr}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+    // Combine date and time
+    // Parse as UTC first, then we'll display in South African time
+    const dateTimeStr = `${dateStr}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00.000Z`;
+    const utcTime = new Date(dateTimeStr);
     
-    // Create date object (assumes Africa/Johannesburg timezone)
-    // Since Render runs in UTC, we need to adjust
-    const localTime = new Date(dateTimeStr + '+02:00'); // South Africa is UTC+2
-    
-    return localTime;
+    return utcTime;
   } catch (error) {
     console.error('Error parsing time:', error);
     return null;
@@ -61,7 +59,9 @@ function parseCallbackTime(dateStr, timeStr) {
 // Function to check and trigger callbacks
 async function checkCallbacks() {
   try {
-    console.log(`[${new Date().toISOString()}] Checking for callbacks...`);
+    const now = new Date();
+    console.log(`[${now.toISOString()}] Checking for callbacks...`);
+    console.log(`Current time in South Africa: ${now.toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' })}`);
     
     // Fetch all records from MockAPI
     const response = await fetch(MOCK_API_URL);
@@ -75,7 +75,6 @@ async function checkCallbacks() {
     const records = await response.json();
     console.log(`Found ${records.length} total records`);
     
-    const now = new Date();
     let updatedCount = 0;
     
     // Filter for active callbacks (isCallback = "true")
@@ -119,7 +118,7 @@ async function checkCallbacks() {
         } else {
           console.error(`❌ Failed to update record ${record.id}: ${updateResponse.status}`);
         }
-      } else if (timeDiff < 5) {
+      } else if (timeDiff < 5 && timeDiff > -60) {
         console.log(`⚠️  Missed window for record ${record.id} (only ${timeDiff}s left)`);
       }
     }
