@@ -28,6 +28,35 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// Function to parse time string like "3:31 PM" and combine with date
+function parseCallbackTime(dateStr, timeStr) {
+  try {
+    // Parse time string (e.g., "3:31 PM")
+    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!timeMatch) return null;
+    
+    let hours = parseInt(timeMatch[1]);
+    const minutes = parseInt(timeMatch[2]);
+    const period = timeMatch[3].toUpperCase();
+    
+    // Convert to 24-hour format
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    // Combine date and time (dateStr is like "2026-01-29")
+    const dateTimeStr = `${dateStr}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+    
+    // Create date object (assumes Africa/Johannesburg timezone)
+    // Since Render runs in UTC, we need to adjust
+    const localTime = new Date(dateTimeStr + '+02:00'); // South Africa is UTC+2
+    
+    return localTime;
+  } catch (error) {
+    console.error('Error parsing time:', error);
+    return null;
+  }
+}
+
 // Function to check and trigger callbacks
 async function checkCallbacks() {
   try {
@@ -42,14 +71,6 @@ async function checkCallbacks() {
       return;
     }
     
-    // Check content type
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      console.error(`Invalid response (not JSON): ${text.substring(0, 100)}`);
-      return;
-    }
-    
     const records = await response.json();
     console.log(`Found ${records.length} total records`);
     
@@ -58,17 +79,23 @@ async function checkCallbacks() {
     
     // Filter for active callbacks (isCallback = "true")
     const activeCallbacks = records.filter(record => 
-      record.callbackDateTime && record.isCallback === "true"
+      record.callbackDate && record.callbackDisplayTime && record.isCallback === "true"
     );
     
     console.log(`Found ${activeCallbacks.length} active callbacks`);
     
     // Check each active callback
     for (const record of activeCallbacks) {
-      const callbackTime = new Date(record.callbackDateTime);
+      const callbackTime = parseCallbackTime(record.callbackDate, record.callbackDisplayTime);
+      
+      if (!callbackTime) {
+        console.log(`Skipping record ${record.id} - invalid time format`);
+        continue;
+      }
+      
       const timeDiff = Math.floor((callbackTime - now) / 1000); // seconds until callback
       
-      console.log(`Record ${record.id}: Callback at ${record.callbackDateTime}, Time diff: ${timeDiff}s`);
+      console.log(`Record ${record.id}: Callback at ${record.callbackDate} ${record.callbackDisplayTime} (${callbackTime.toISOString()}), Time diff: ${timeDiff}s`);
       
       // If callback time has passed (timeDiff is negative or zero)
       if (timeDiff <= 0) {
@@ -93,10 +120,10 @@ async function checkCallbacks() {
       }
     }
     
-    // Skip records without valid callbackDateTime or isCallback != "true"
+    // Skip records without valid data
     const skippedCount = records.length - activeCallbacks.length;
     if (skippedCount > 0) {
-      console.log(`Skipping ${skippedCount} records - no valid callbackDateTime or isCallback != "true"`);
+      console.log(`Skipping ${skippedCount} records - no valid callback data or isCallback != "true"`);
     }
     
     console.log(`Completed check. Updated ${updatedCount} records.`);
@@ -104,7 +131,6 @@ async function checkCallbacks() {
     
   } catch (error) {
     console.error('Error checking callbacks:', error.message);
-    console.error('Full error:', error);
   }
 }
 
@@ -120,4 +146,3 @@ app.listen(PORT, () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('Checking MockAPI every 60 seconds');
 });
-
