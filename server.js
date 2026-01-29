@@ -4,7 +4,7 @@ const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const MOCK_API_URL = 'https://679a70c4096b4eadba7f5609.mockapi.io/api/v1/callbacks';
+const MOCK_API_URL = 'https://69731f5bb5f46f8b5826379d.mockapi.io/callList';
 
 app.use(express.json());
 
@@ -120,3 +120,4 @@ app.listen(PORT, () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('Checking MockAPI every 60 seconds');
 });
+
